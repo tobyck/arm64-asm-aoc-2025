@@ -17,7 +17,7 @@ load_input:
 	bl load_file						// x0 now points to buffer
 	mov x19, x0							// preserve pointer to input buffer
 
-	mov w20, 2							// w20 = dial position
+	mov w20, 50							// w20 = dial position
 	mov w21, 0							// w21 = answer
 	mov x22, x0							// x22 = address to read next char from
 
@@ -27,10 +27,13 @@ line_loop:
 	mov x0, x22							// x0 = address of int start
 	bl str_to_int						// x0 is now the int
 	add x22, x22, x1					// x22 += number of chars read for int
-	neg x9, x0							// either x0 or x9 will be added depending on dir.
 	cmp w23, 'L'
-	csel x0, x9, x0, eq					// negate int if turning left
-	add w20, w20, w0					// add to position
+	mov w9, 1
+	mov w10, -1
+	csel w11, w10, w9, eq				// x11 = -1 if x0 < 0 else 1
+increment_loop:
+	add w20, w20, w11					// increment/decrement position
+	sub x0, x0, 1						// decrement loop counter
 	mov w9, 100
 	sdiv w10, w20, w9					// w10 = position / 100
 	msub w20, w10, w9, w20				// position = remainder (could be negative)
@@ -38,9 +41,10 @@ line_loop:
 	bge positive_remainder
 	add w20, w20, w9					// add 100 if remainder is negative
 positive_remainder:
-	cbnz w20, line_loop					// repeat early if position not 0
-	add w21, w21, 1						// otherwise increment answer
-	b line_loop
+	cmp w20, 0
+	cinc w21, w21, eq					// if (position == 0) answer++
+	cbz x0, line_loop					// go to next line if we've effectively done the full rot.
+	b increment_loop					// otherwise continue incrementing/decrementing
 	
 print_answer:
 	mov x0, x21

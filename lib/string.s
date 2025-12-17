@@ -8,6 +8,7 @@ newline: .asciz "\n"
 //	x0 = address of buffer
 // returns:
 //	x0 = the int
+//	x1 = number of chars read (excl. null byte)
 // internal:
 //	x0 = current address to read from
 //	x1 = the int as it's built
@@ -18,6 +19,7 @@ str_to_int:
 	// intialise registers (see comments above)
 	mov x1, 0
 	mov w2, 0
+	mov x5, x0
 
 	ldrb w3, [x0] // read first char into x3
 
@@ -51,7 +53,9 @@ str_to_int:
 
 	b .Lstr_to_int_parse_loop
 .Lstr_to_int_end:
+	sub x3, x0, x5
 	mov x0, x1
+	mov x1, x3
 	cbz w2, .Lstr_to_int_return
 	neg x0, x0
 .Lstr_to_int_return:
