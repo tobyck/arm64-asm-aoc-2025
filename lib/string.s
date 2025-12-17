@@ -19,7 +19,7 @@ str_to_int:
 	// intialise registers (see comments above)
 	mov x1, 0
 	mov w2, 0
-	mov x5, x0
+	add x5, x0, 1
 
 	ldrb w3, [x0] // read first char into x3
 
