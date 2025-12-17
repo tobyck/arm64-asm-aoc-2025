@@ -5,7 +5,50 @@ bytes_freed_msg: .asciz " bytes freed\n"
 bytes_leaked_msg: .asciz " bytes leaked\n"
 
 .text
-.global exit_success, exit_failure
+.global load_file, exit_success, exit_failure
+
+// arg: x0 = filename
+// returns x0: pointer to buffer
+load_file:
+	stp fp, lr, [sp, -16]!
+	mov fp, sp
+	stp x19, x20, [sp, -16]!
+	sub sp, sp, 144		// space for stat struct
+						// x0 (filename) already set by caller
+	mov x1, 0 			// read only
+	mov x16, 5 			// syscall = open
+	svc 0
+
+	mov x19, x0 		// preserve fd
+						// x0 (fd) already set by above syscall
+	mov x1, sp	 		// x1 = address of stat struct
+	mov x16, 189 		// syscall = fstat
+	svc 0
+
+	ldr x0, [sp, 72]	// x0 = file size
+	add x0, x0, 1		// +1 for null byte
+	mov x20, x0			// preserve for later read syscall
+	bl mem_alloc
+
+	mov x2, x20			// x2 = number of bytes to read
+	mov x1, x0			// x1 = pointer to buffer
+	mov x20, x0			// also preserve for return value
+	mov x0, x19			// x0 = fd
+	mov x16, 3			// syscall = read
+	svc 0
+
+	strb wzr, [x20, x0]	// store null byte
+
+	mov x0, x19			// x0 = fd
+	mov x16, 6			// syscall = close
+	svc 0
+
+	mov x0, x20			// return value = pointer to buffer
+
+	add sp, sp, 144
+	ldp x19, x20, [sp], 16
+	ldp fp, lr, [sp], 16
+	ret
 
 exit:
 	adrp x1, MEM_STATS@PAGE
@@ -58,4 +101,3 @@ exit_success:
 exit_failure:
 	mov x0, 1		// status code = 0
 	b exit
-

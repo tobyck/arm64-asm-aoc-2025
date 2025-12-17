@@ -4,7 +4,7 @@
 int_as_str: .space MAX_INT_AS_STR_LEN
 
 .text
-.global itoa, print_int
+.global int_to_str, print_int, print_intln
 
 // args:
 // 	x0 = address of buffer
@@ -17,7 +17,7 @@ int_as_str: .space MAX_INT_AS_STR_LEN
 //	x4 = flag for if number is negative (1 if neg)
 //  x5 = see comments, used for a few things
 // 	x6 = 10
-itoa:
+int_to_str:
 	// x3 = x0 + x1 (address of byte immediately after buffer)
 	mov x3, x0				// x3 = x0
 	add x3, x3, x1			// x3 += x1
@@ -30,28 +30,28 @@ itoa:
 
 	// skip to normal logic for non-negative numbers
 	cmp	x2,	0
-	bge .Litoa_loop
+	bge .Lint_to_str_loop
 
 	// we end up here for negative numbers
 	mov x4, 1 				// flag that the number is negative
 	neg x2, x2  			// negate it before we proceed with the normal logic
-.Litoa_loop:
+.Lint_to_str_loop:
 	mov x5, x2 				// remember what x2 was in x5
 	mov x6, 10
 	udiv x2, x2, x6 		// x2 /= 10
 	msub x5, x2, x6, x5 	// remainder (in x5) = old x2 - quotient * 10
 	add x5, x5, '0' 		// turn digit into its ascii code
 	strb w5, [x3, -1]!		// decrement address and store char in buffer
-	cbnz x2, .Litoa_loop	// continue until quotient = 0
+	cbnz x2, .Lint_to_str_loop	// continue until quotient = 0
 
 	// skip to normal end stage if number wasn't negative
 	cmp x4, 1
-	bne .Litoa_end
+	bne .Lint_to_str_end
 
 	// otherwise store a '-' before the number in the buffer
 	mov w5, '-'
 	strb w5, [x3, -1]!
-.Litoa_end:
+.Lint_to_str_end:
 	mov x0, x3 // store address of first char in x0
 	ret
 
@@ -65,10 +65,18 @@ print_int:
 	adrp x0, int_as_str@PAGE
 	add x0, x0, int_as_str@PAGEOFF
 	mov x1, MAX_INT_AS_STR_LEN
-	bl itoa
+	bl int_to_str
 	bl print_str
 
-	mov sp, fp
 	ldp fp, lr, [sp], 16
+	ret
 
+print_intln:
+	stp fp, lr, [sp, -16]!
+	mov fp, sp
+
+	bl print_int
+	bl print_br
+
+	ldp fp, lr, [sp], 16
 	ret

@@ -12,7 +12,7 @@
 //		- header:
 //			- size (8 bytes)
 //			- pointer to next region (8 bytes)
-// 	block = a single allocation made by a call to malloc:
+// 	block = a single allocation made by a call to mem_alloc:
 //		[header][user payload][footer]
 //		- header:
 //			- size (8 bytes - 1 bit)
@@ -34,7 +34,7 @@ bytes_allocated: .quad 0
 bytes_freed: .quad 0
 
 .text
-.global aoc_memcpy, aoc_malloc, aoc_realloc, aoc_free, bytes_allocated, bytes_freed
+.global mem_copy, mem_alloc, mem_realloc, mem_free, bytes_allocated, bytes_freed
 
 // args:
 //	x0 = dest ptr
@@ -42,14 +42,14 @@ bytes_freed: .quad 0
 //	x2 = length
 // returns:
 //	x0 = dest ptr
-aoc_memcpy:
+mem_copy:
 	mov x3, x0
 	add x4, x1, x2					// x5 = address for x3 to stop at
-.Laoc_memcpy_loop:
+.Lmem_copy_loop:
 	ldr q0, [x1], 128
 	str q0, [x3], 128			
 	cmp x1, x4
-	blt .Laoc_memcpy_loop
+	blt .Lmem_copy_loop
 	ret
 
 // args:
@@ -58,12 +58,12 @@ aoc_memcpy:
 // returns:
 //	x0 = allocated pointer (or 0 if x1 = 0)
 // will error and exit on failure
-aoc_malloc_internal:
+mem_alloc_internal:
 	// return null if requested bytes = 0
-	cbnz x1, .Lmalloc_arg_ok
+	cbnz x1, .Lmem_alloc_arg_ok
 	mov x1, 0
 	ret
-.Lmalloc_arg_ok:
+.Lmem_alloc_arg_ok:
 	stp fp, lr, [sp, -16]!
 	mov fp, sp
 
@@ -77,27 +77,27 @@ aoc_malloc_internal:
 	adrp x11, head_region@PAGE
 	add x11, x11, head_region@PAGEOFF
 	ldr x12, [x11]					// x12 = addr of head region
-	cbz x12, .Lmalloc_new_mapping
+	cbz x12, .Lmem_alloc_new_mapping
 
 	mov x1, x12						// x1 will store ptr to current region
-.Lmalloc_search_regions_loop:
+.Lmem_alloc_search_regions_loop:
 	ldr x2, [x1]					// x2 = size of region
 	ldr x3, [x1, 8]					// x3 = ptr to next region
 	sub x4, x2, 16 					// x4 = usable size of region (header is 16 bytes)
 	cmp x10, x4 					// cmp requested size w/ usable size in this region
-	bgt .Lmalloc_next_region
+	bgt .Lmem_alloc_next_region
 
 	add x15, x1, 16					// x4 = addr of current block
-.Lmalloc_walk_blocks_loop:
+.Lmem_alloc_walk_blocks_loop:
 	ldr x5, [x15]					// x5 = first half of block header
 	lsr x6, x5, 1					// x6 = block size (lsr 1 to drop flag)
-	tbnz x5, 0, .Lmalloc_next_block	// walk to next if block is allocated
+	tbnz x5, 0, .Lmem_alloc_next_block	// walk to next if block is allocated
 	cmp x10, x6						// cmp req'd size w/ size of block
-	bgt .Lmalloc_next_block			// skip if not req'd size is greater
+	bgt .Lmem_alloc_next_block			// skip if not req'd size is greater
 
 	sub x7, x6, x10					// x7 = size of remaining free block
 	cmp x7, MIN_BLOCK_SIZE
-	blt .Lmalloc_only_set_free_flag	// if rem. size is < min. then block size stays the same
+	blt .Lmem_alloc_only_set_free_flag	// if rem. size is < min. then block size stays the same
 
 	lsl x7, x7, 1					// shift left for flag
 	bic x7, x7, 1					// set x7 lsb low (x7 = 1st 1/2 of header of rem. free block)
@@ -110,26 +110,26 @@ aoc_malloc_internal:
 	orr x5, x5, 1					// flag new block is now allocated
 	stp x5, x1, [x15]				// store header
 	sub x9, x10, BLOCK_FOOTER_SIZE	// x9 = new footer offset from x15
-	b .Lmalloc_end
+	b .Lmem_alloc_end
 
-.Lmalloc_only_set_free_flag:
+.Lmem_alloc_only_set_free_flag:
 	orr x5, x5, 1					// change flag of existing header
 	stp x5, x1, [x15]				// store header
 	sub x9, x6, 8					// x9 = offset of footer from x15
-	b .Lmalloc_end
+	b .Lmem_alloc_end
 
-.Lmalloc_next_block:
+.Lmem_alloc_next_block:
 	add x15, x15, x6				// addr of current block += current block size
 	add x7, x1, x2					// x7 = region addr + region size = end of region
 	cmp x15, x7
-	beq .Lmalloc_next_region		// go to next region if we've gone through all blocks
+	beq .Lmem_alloc_next_region		// go to next region if we've gone through all blocks
 	bgt .Lallocator_block_overflow	// error if block goes beyond region boundry
-	b .Lmalloc_walk_blocks_loop		// otherwise go to next block in the same region
+	b .Lmem_alloc_walk_blocks_loop		// otherwise go to next block in the same region
 
-.Lmalloc_next_region:
-	cbz x3, .Lmalloc_new_mapping	// make new mapping if we've searched all regions
+.Lmem_alloc_next_region:
+	cbz x3, .Lmem_alloc_new_mapping	// make new mapping if we've searched all regions
 	mov x1, x3						// addr of current region = addr of next region
-	b .Lmalloc_search_regions_loop
+	b .Lmem_alloc_search_regions_loop
 
 .Lallocator_block_overflow:
 	adrp x0, block_overflow_msg@PAGE
@@ -137,7 +137,7 @@ aoc_malloc_internal:
 	bl print_str
 	b exit_failure
 
-.Lmalloc_new_mapping:
+.Lmem_alloc_new_mapping:
 	mov x9, x1						// x9 = addr of current current tail region
 
 	mov x0, 0						// addr = null
@@ -152,23 +152,23 @@ aoc_malloc_internal:
 	mov x16, 197					// syscall = mmap
 	svc 0
 
-malloc_mmap_return_breakpoint:		// I have a feeling this will come in handy...
+mem_alloc_mmap_return_breakpoint:		// I have a feeling this will come in handy...
 
 	// error if small value is returned
 	cmp x0, 4096
-	bgt .Lmalloc_mmap_ok
+	bgt .Lmem_alloc_mmap_ok
 	adrp x0, mmap_error_msg@PAGE
 	add x0, x0, mmap_error_msg@PAGEOFF
 	bl print_str
 	b exit_failure
-.Lmalloc_mmap_ok:
-	cbz x12, .Lmalloc_update_head
-.Lmalloc_update_tail:
+.Lmem_alloc_mmap_ok:
+	cbz x12, .Lmem_alloc_update_head
+.Lmem_alloc_update_tail:
 	str x0, [x9, 8]					// store ptr to this region in header of tail region
-	b .Lmalloc_mmap_continue
-.Lmalloc_update_head:
+	b .Lmem_alloc_mmap_continue
+.Lmem_alloc_update_head:
 	str x0, [x11]					// store region pointer in head_region
-.Lmalloc_mmap_continue:
+.Lmem_alloc_mmap_continue:
 
 	mov x15, x0						// copy region base to x15
 	stp x13, xzr, [x15], 16			// store region header for this region (and x15 = block start)
@@ -192,16 +192,16 @@ malloc_mmap_return_breakpoint:		// I have a feeling this will come in handy...
 	stp x5, x0, [x15]				// store block header
 	sub x9, x10, BLOCK_FOOTER_SIZE	// x9 = offset of block footer from x15
 
-.Lmalloc_end:
+.Lmem_alloc_end:
 	add x0, x15, BLOCK_HEADER_SIZE	// x0 = start of useable memory (return value)
 
-	cbz x14, .Lmalloc_store_footer
+	cbz x14, .Lmem_alloc_store_footer
 
 	mov x1, x14						// x1 = address of old memory
 	ldr x2, [x1, -16]				// x2 = size of old memory block
 	sub x2, x2, 24					// x2 = usable memory in old block (amt. to copy)
-	bl aoc_memcpy
-.Lmalloc_store_footer:
+	bl mem_copy
+.Lmem_alloc_store_footer:
 	str x5, [x15, x9]
 	
 	// increment bytes_allocated counter
@@ -211,13 +211,12 @@ malloc_mmap_return_breakpoint:		// I have a feeling this will come in handy...
 	add x2, x2, x10
 	str x2, [x1]
 
-	mov sp, fp
 	ldp fp, lr, [sp], 16
 	ret
 
 // args: x0 = address to free
 // returns: nada
-aoc_free:
+mem_free:
 	ldr x5, [x0, -8]				// x5 = base pointer
 	ldr x6, [x5]					// x6 = size of region
 	add x7, x5, x6					// x7 = addr past end of region
@@ -295,34 +294,32 @@ aoc_free:
 
 // arg: x0 = number of bytes to allocate
 // returns x0: address
-aoc_malloc:
+mem_alloc:
 	stp fp, lr, [sp, -16]!
 	mov fp, sp
 
 	mov x1, x0
 	mov x0, 0
-	bl aoc_malloc_internal
+	bl mem_alloc_internal
 
-	mov sp, fp
 	ldp fp, lr, [sp], 16
 
 	ret
 
-// see args for internal malloc
-aoc_realloc:
+// see args for internal mem_alloc
+mem_realloc:
 	stp fp, lr, [sp, -16]!
 	mov fp, sp
 
 	mov x16, x0
 	mov x17, x1
 	
-	bl aoc_free
+	bl mem_free
 
 	mov x0, x16
 	mov x1, x17
-	bl aoc_malloc_internal
+	bl mem_alloc_internal
 
-	mov sp, fp
 	ldp fp, lr, [sp], 16
 
 	ret
