@@ -18,7 +18,7 @@ load_input:
 	mov x19, x0							// preserve pointer to input buffer
 
 	mov x20, x0 						// x20 = current address
-	mov x23, 0							// x23 = answer
+	mov x25, 0							// x23 = answer
 
 next_range:
 	ldrb w9, [x20]
@@ -44,41 +44,38 @@ next_in_range:
 	mov x1, 21
 	mov x2, x21
 	bl int_to_str						// x0 = str, x1 = length
+	mov x23, x0
+	mov x24, x1
+	add x13, x0, x1						// x13 = address of null byte
 	mov x9, 1							// x9 will store current divisor
-	add x15, x0, x1						// address off null byte in string
 
 next_divisor:
 	add x9, x9, 1						// add 1 to divisor
-	cmp x9, x1
+	cmp x9, x24
 	bgt next_in_range					// go to next in range if divisor > length
-	udiv x10, x1, x9					// x10 = length / divisor
-	msub x11, x10, x9, x1				// x11 = remainder
+	udiv x10, x24, x9					// x10 = length / divisor (section length)
+	msub x11, x10, x9, x24				// x11 = remainder
 	cbnz x11, next_divisor				// skip if not divisible
 
-	mov x11, x0							// start address in first section (0 to d-1)
-	add x17, x0, x10					// address of first char in second section
-next_char_offset:
-	cmp x11, x17						// if all offsets checked
+	mov x11, x23						// x11 = address of first string
+	add x12, x23, x10					// x12 = address of second string
+next_cmp:
+	cmp x12, x13						// add to total if all sections checked
 	bge add_to_total
-	mov x12, x11 						// current address of char
-	ldrb w13, [x12] 					// first char in sequence
-	add x12, x12, x10
-next_char:
-	cmp x12, x15						// if address is beyond end
-	cinc x11, x11, ge
-	bge next_char_offset
-	ldrb w14, [x12]						// get next char
-	cmp w13, w14						// if chars don't match
-	bne next_divisor
-	add x12, x12, x10					// otherwise, move addr to next char in sequence
-	b next_char
+	mov x0, x11
+	mov x1, x12
+	mov x2, x10							// x2 = length of section
+	bl str_n_cmp
+	cbnz x0, next_divisor				// go to next divisor if not equal
+	add x12, x12, x10					// otherwise check next section
+	b next_cmp
 
 add_to_total:
-	add x23, x23, x21
+	add x25, x25, x21
 	b next_in_range
 
 print_answer:
-	mov x0, x23
+	mov x0, x25
 	bl print_intln
 
 	// free input buffer

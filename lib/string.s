@@ -2,7 +2,59 @@
 newline: .asciz "\n"
 
 .text
-.global str_to_int, print_str, print_br
+.global str_cmp, str_n_cmp, str_to_int, print_str, print_br
+
+// args:
+//	x0 = first string
+//	x1 = second string
+// returns x0:
+//	- 0 if strings are equal
+//	- negative number if first string < second string
+//	- positive number if vice versa
+// could optimise by comparing 8 bytes at a time but can't be bothered rn
+str_cmp:
+	mov x3, x0						// x9 and x4 will address current chars
+	mov x4, x1
+.Lstr_cmp_loop:
+	ldrb w5, [x3]					// x11 and x12 = current chars
+	ldrb w6, [x4]
+
+	subs w0, w5, w6				// compare two current chars
+	bne .Lstr_cmp_return			// return x0 if not equal
+
+	cbz w5, .Lstr_cmp_return		// return if null byte found
+
+	add x3, x3, 1					// move to next chars
+	add x4, x4, 1
+
+	b .Lstr_cmp_loop
+.Lstr_cmp_return:
+	ret
+
+// same as str_cmp but with x2 = length
+str_n_cmp:
+	cbz x2, .Lstr_n_cmp_return_zero
+
+	mov x3, x0						// x9 and x4 will address current chars
+	mov x4, x1
+.Lstr_n_cmp_loop:
+	ldrb w5, [x3]					// x11 and x12 = current chars
+	ldrb w6, [x4]
+
+	subs w0, w5, w6				// compare two current chars
+	bne .Lstr_n_cmp_return			// return x0 if not equal
+
+	cbz w5, .Lstr_n_cmp_return		// return if null byte found
+
+	add x3, x3, 1					// move to next chars
+	add x4, x4, 1
+
+	subs x2, x2, 1					// decrement counter
+	bne .Lstr_n_cmp_loop			// loop until counter = 0
+.Lstr_n_cmp_return_zero:
+	mov w0, 0
+.Lstr_n_cmp_return:
+	ret
 
 // args:
 //	x0 = address of buffer
