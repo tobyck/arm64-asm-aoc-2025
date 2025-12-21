@@ -2,7 +2,28 @@
 newline: .asciz "\n"
 
 .text
-.global str_cmp, str_n_cmp, str_to_int, print_str, print_br
+.global index_of, str_cmp, str_n_cmp, str_to_int, print_str, print_br
+
+// args:
+//	x0 = string
+//	w1 = char
+// returns:
+//	x0 = index of char in string
+index_of:
+	mov x2, x0
+.Lindex_of_loop:
+	ldrb w3, [x0]
+	cbz w3, .Lindex_of_not_found
+	cmp w3, w1
+	cinc x0, x0, ne
+	beq .Lindex_of_return_index
+	b .Lindex_of_loop
+.Lindex_of_not_found:
+	mov x0, -1
+	ret
+.Lindex_of_return_index:
+	sub x0, x0, x2
+	ret
 
 // args:
 //	x0 = first string
@@ -13,7 +34,7 @@ newline: .asciz "\n"
 //	- positive number if vice versa
 // could optimise by comparing 8 bytes at a time but can't be bothered rn
 str_cmp:
-	mov x3, x0						// x9 and x4 will address current chars
+	mov x3, x0						// x3 and x4 will address current chars
 	mov x4, x1
 .Lstr_cmp_loop:
 	ldrb w5, [x3]					// x11 and x12 = current chars
