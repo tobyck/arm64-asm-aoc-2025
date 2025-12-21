@@ -46,8 +46,8 @@ mem_copy:
 	mov x3, x0
 	add x4, x1, x2					// x5 = address for x3 to stop at
 .Lmem_copy_loop:
-	ldr q0, [x1], 128
-	str q0, [x3], 128			
+	ldr q0, [x1], 16
+	str q0, [x3], 16			
 	cmp x1, x4
 	blt .Lmem_copy_loop
 	ret
