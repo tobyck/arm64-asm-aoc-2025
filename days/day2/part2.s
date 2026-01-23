@@ -18,7 +18,7 @@ load_input:
 	mov x19, x0							// preserve pointer to input buffer
 
 	mov x20, x0 						// x20 = current address
-	mov x25, 0							// x23 = answer
+	mov x25, 0							// x25 = answer
 
 next_range:
 	ldrb w9, [x20]

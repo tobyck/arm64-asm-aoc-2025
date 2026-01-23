@@ -27,6 +27,7 @@ line_loop:
 	mov x0, x22							// x0 = address of int start
 	bl str_to_int						// x0 is now the int
 	add x22, x22, x1					// x22 += number of chars read for int
+	add x22, x22, 1
 	cmp w23, 'L'
 	mov w9, 1
 	mov w10, -1

@@ -17,16 +17,18 @@ load_input:
 	bl load_file						// x0 now points to buffer
 	mov x19, x0							// preserve pointer to input buffer
 
-	mov w20, 2							// w20 = dial position
+	mov w20, 50							// w20 = dial position
 	mov w21, 0							// w21 = answer
-	mov x22, x0							// x22 = address to read next char from
+	mov x22, x0 						// x22 = address to read next char from
 
 line_loop:
+	bl break
 	ldrb w23, [x22], 1					// w23 = L or R
 	cbz w23, print_answer				// print answer when null byte reached
 	mov x0, x22							// x0 = address of int start
 	bl str_to_int						// x0 is now the int
 	add x22, x22, x1					// x22 += number of chars read for int
+	add x22, x22, 1
 	neg x9, x0							// either x0 or x9 will be added depending on dir.
 	cmp w23, 'L'
 	csel x0, x9, x0, eq					// negate int if turning left

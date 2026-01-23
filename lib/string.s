@@ -157,7 +157,6 @@ print_str:
 // print [line]br[eak]
 print_br:
 	stp fp, lr, [sp, -16]!
-	mov fp, sp
 
 	adrp x0, newline@PAGE
 	add x0, x0, newline@PAGEOFF

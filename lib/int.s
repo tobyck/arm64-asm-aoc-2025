@@ -63,7 +63,6 @@ int_to_str:
 //	x0 = the int
 print_int:
 	stp fp, lr, [sp, -16]!
-	mov fp, sp
 
 	mov x2, x0
 	adrp x0, int_as_str@PAGE
@@ -77,7 +76,6 @@ print_int:
 
 print_intln:
 	stp fp, lr, [sp, -16]!
-	mov fp, sp
 
 	bl print_int
 	bl print_br
