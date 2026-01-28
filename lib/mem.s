@@ -53,14 +53,10 @@ mem_copy:
 	blt .Lmem_copy_loop
 	ret
 
-// args:
-//	x0 = address to re-allocate (0 for no realloc)
-//	x1 = number of usable bytes in previous allocated block
-//	x2 = number of bytes to allocate
-// returns:
-//	x0 = allocated pointer (or 0 if x2 = 0)
+// args: x0 = number of bytes to allocate
+// returns: x0 = allocated pointer
 // will error and exit on failure
-mem_alloc_internal:
+mem_alloc:
 	// return null if requested bytes = 0
 	cbnz x2, .Lmem_alloc_arg_ok
 	mov x0, 0
@@ -69,15 +65,8 @@ mem_alloc_internal:
 	stp fp, lr, [sp, -16]!
 
 	// x10 = required block size
-	add x10, x2, 39					// 16 for header + 8 for footer + 15 for padding
+	add x10, x0, 39					// 16 for header + 8 for footer + 15 for padding
 	bic x10, x10, 15
-
-	// preserve old address and size of old usable memory
-	mov x14, x0
-	cbz x0, .Lmem_alloc_no_preserve_size
-	cmp x2, x1
-	csel x17, x2, x1, lt // copy_size = new_size < old_size ? new_size : old_size
-.Lmem_alloc_no_preserve_size:
 
 	// if no regions mapped yet, make a new mapping
 	adrp x11, head_region@PAGE
@@ -198,13 +187,7 @@ mem_alloc_internal:
 .Lmem_alloc_end:
 	add x0, x15, BLOCK_HEADER_SIZE	// x0 = start of useable memory (return value)
 
-	cbz x14, .Lmem_alloc_store_footer
-
-	mov x1, x14						// x1 = address of old memory
-	mov x2, x17						// x2 = number of bytes to copy
-	bl mem_copy
-.Lmem_alloc_store_footer:
-	str x5, [x15, x9]
+	str x5, [x15, x9] 				// store footer of allocated block
 	
 	// increment bytes_allocated counter
 	adrp x1, bytes_allocated@PAGE
@@ -328,20 +311,6 @@ mem_free:
 	ldp fp, lr, [sp], 16
 	ret
 
-// arg: x0 = number of bytes to allocate
-// returns x0: address
-mem_alloc:
-	stp fp, lr, [sp, -16]!
-
-	mov x2, x0
-	mov x0, 0
-	mov x1, 0
-	bl mem_alloc_internal
-
-	ldp fp, lr, [sp], 16
-
-	ret
-
 // args:
 //	x0 = old address
 //	x1 = new size
@@ -359,20 +328,24 @@ mem_realloc:
 	stp x19, x20, [sp, 16]
 	stp x21, x22, [sp, 32]
 
+	// preserve args
 	mov x19, x0
-	ldr x20, [x19, -16]
-	lsr x20, x20, 1
-	sub x20, x20, 24
-	mov x21, x1
-	
-	bl mem_free_internal
-	mov x22, x0
+	mov x20, x1
 
-	mov x0, x19
-	mov x1, x20
-	mov x2, x21
-	bl mem_alloc_internal
-	mov x19, x0
+	// x20 = number of bytes to copy from old location
+	ldr x21, [x19]
+	lsr x21, x21, 1
+	sub x21, x21, 24
+
+	bl mem_free_internal
+	mov x22, x0				// x22 = possible address to unmap
+
+	mov x0, x20
+	bl mem_alloc
+
+	mov x1, x0				// src
+	mov x0, x19				// dest
+	mov x2, x21				// size
 
 	cbz x22, .Lmem_realloc_end
 	mov x0, x22

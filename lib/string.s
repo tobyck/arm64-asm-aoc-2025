@@ -2,7 +2,7 @@
 newline: .asciz "\n"
 
 .text
-.global index_of, str_cmp, str_n_cmp, str_to_int, print_str, print_br
+.global index_of, str_cmp, str_n_cmp, str_to_int, print_str, print_br, str_len
 
 // args:
 //	x0 = string
@@ -164,4 +164,41 @@ print_br:
 
 	ldp fp, lr, [sp], 16
 
+	ret
+
+// arg: x0 = null-terminated string
+// returns w0: length of string excluding null byte
+//
+// thanks to this long post: https://stackoverflow.com/a/57676035/18516526
+// and specifically this implementation from glibc which I tried to roughly port:
+// https://codebrowser.dev/glibc/glibc/sysdeps/aarch64/strlen.S.html
+str_len:
+	mov w9, 0 					// length counter
+	mov w12, 16					// constant csel 
+
+.Lstr_len_align_loop:
+	tst x0, 0xf					// test if address is 16-byte aligned
+	beq .Lstr_len_vector_loop 	// start scanning 16 bytes at a time once addr. is aligned
+	// until it is aligned we scan byte by byte
+	ldrb w10, [x0], 1 			// load next char and advance pointer to next
+	cmp w10, 0
+	beq .Lstr_len_end			// return if null byte found
+	add w9, w9, 1				// otherwise increment counter
+	b .Lstr_len_align_loop		// and repeat
+
+.Lstr_len_vector_loop:
+	ld1 {v0.16b}, [x0], 16 		// load 16 bytes
+	cmeq v0.16b, v0.16b, 0		// set 0 bytes to FF and non-zero bytes to 00
+	shrn v0.8b, v0.8h, 4		// shift each byte by 4 bits and pack into lower half of vec (64 bits)
+	fmov x10, d0				// extract lower 64 bits of vec into scalar registers
+	rbit x11, x10				// reverse bits and count leading zeroes to find...
+	clz x11, x11 				// index of null byte
+	lsr x11, x11, 2				// divide by 4 (since essentially each lane got reduced to 4 bits)
+	cmp x10, 0
+	csel w11, w12, w11, eq		// w11 = amount to inc. by (16 if no null, otherwise index of null)
+	add w9, w9, w11				// increase counter
+	beq .Lstr_len_vector_loop	// loop if null byte not found
+
+.Lstr_len_end:
+	mov w0, w9					// return string length
 	ret

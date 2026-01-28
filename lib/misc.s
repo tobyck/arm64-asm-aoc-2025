@@ -18,7 +18,7 @@ adj_offsets:
 .set LIST_INIT_CAP, 8
 
 .text
-.global list_init, list_ensure_capacity, list_push_reg, list_clear
+.global list_init, list_ensure_capacity, list_push_reg, list_clear, list_free
 .global get_all_adj_chars
 .global load_file
 .global exit_success, exit_failure
@@ -180,6 +180,17 @@ list_clear:
 	ldp fp, lr, [sp], 16
 	ret
 
+// arg: x0 = list struct
+// returns: nothing
+list_free:
+	stp fp, lr, [sp, -16]!
+
+	ldr x0, [x0]
+	bl mem_free
+
+	ldp fp, lr, [sp], 16
+	ret
+
 // args:
 //	x0 = pointer to grid
 //	w1 = width of grid (excl. newline)
@@ -227,11 +238,14 @@ get_all_adj_chars:
 	sub x1, x5, x12				// return number of adj. chars
 	ret
 
-// arg: x0 = filename
+// args:
+//	x0 = filename
+//	x1 = length of file
 // returns x0: pointer to buffer
 load_file:
 	stp fp, lr, [sp, -16]!
 	stp x19, x20, [sp, -16]!
+	str x21, [sp, -16]!
 	sub sp, sp, 144		// space for stat struct
 						// x0 (filename) already set by caller
 	mov x1, 0 			// read only
@@ -245,6 +259,7 @@ load_file:
 	svc 0
 
 	ldr x0, [sp, 72]	// x0 = file size
+	mov x21, x0			// preserve for return value
 	add x0, x0, 1		// +1 for null byte
 	mov x20, x0			// preserve for later read syscall
 	bl mem_alloc
@@ -262,9 +277,12 @@ load_file:
 	mov x16, 6			// syscall = close
 	svc 0
 
-	mov x0, x20			// return value = pointer to buffer
+	// set return values
+	mov x0, x20
+	mov x1, x21
 
 	add sp, sp, 144
+	ldr x21, [sp], 16
 	ldp x19, x20, [sp], 16
 	ldp fp, lr, [sp], 16
 	ret
