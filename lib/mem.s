@@ -44,13 +44,35 @@ bytes_freed: .quad 0
 // returns:
 //  x0 = dest ptr
 mem_copy:
-    mov x3, x0
-    add x4, x1, x2                  // x5 = address for x3 to stop at
-.Lmem_copy_loop:
-    ldr q0, [x1], 16
-    str q0, [x3], 16            
-    cmp x1, x4
-    blt .Lmem_copy_loop
+    cmp x0, x1
+    beq .Lmem_copy_ret
+
+    mov x9, x0                      // current address in destination
+    mov x10, x1                     // cur. addr. in src
+    mov x11, x2                     // bytes remaining
+.Lmem_copy_align_loop:
+    tst x10, 0xf                    // test to see if current src addr is 16-byte aligned
+    beq .Lmem_copy_vector_copy_loop // start copying in bigger chunks when it is
+    ldrb w12, [x10], 1              // load byte and advance src pointer
+    strb w12, [x9], 1               // store byte and advance dest pointer
+    subs x11, x11, 1                // decrement and compare remaining bytes
+    beq .Lmem_copy_ret              // return if all copied
+    b .Lmem_copy_align_loop         // otherwise keep looping
+.Lmem_copy_vector_copy_loop:
+    cmp x11, 16
+    blt .Lmem_copy_trailing_bytes   // copy remaining bytes 1 by 1 if < 16 remaining
+    ldr q0, [x10], 16               // load 16 bytes into vector register
+    str q0, [x9], 16                // store '     ' from '             '
+    sub x11, x11, 16                // decrement remaining bytes counter
+    b .Lmem_copy_vector_copy_loop
+.Lmem_copy_trailing_bytes:
+    cmp x11, 0
+    beq .Lmem_copy_ret              // return if all bytes copied
+    ldrb w12, [x10], 1              // same as first loop from here
+    strb w12, [x9], 1
+    sub x11, x11, 1
+    b .Lmem_copy_trailing_bytes
+.Lmem_copy_ret:
     ret
 
 // args: x0 = number of bytes to allocate
@@ -332,8 +354,8 @@ mem_realloc:
     mov x19, x0
     mov x20, x1
 
-    // x20 = number of bytes to copy from old location
-    ldr x21, [x19]
+    // x21 = number of bytes to copy from old location
+    ldr x21, [x19, -16]
     lsr x21, x21, 1
     sub x21, x21, 24
 
@@ -343,9 +365,13 @@ mem_realloc:
     mov x0, x20
     bl mem_alloc
 
+    cmp x19, x0
+    beq .Lmem_realloc_skip_copy
     mov x1, x0              // src
     mov x0, x19             // dest
     mov x2, x21             // size
+    bl mem_copy
+.Lmem_realloc_skip_copy:
 
     cbz x22, .Lmem_realloc_end
     mov x0, x22
