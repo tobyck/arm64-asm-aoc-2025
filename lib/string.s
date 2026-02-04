@@ -81,7 +81,7 @@ str_n_cmp:
 //  x0 = address of buffer
 // returns:
 //  x0 = the int
-//  x1 = number of chars read (excl. null byte)
+//  x1 = number of chars read
 // internal:
 //  x0 = current address to read from
 //  x1 = the int as it's built

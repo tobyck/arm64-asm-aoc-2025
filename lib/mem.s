@@ -35,7 +35,7 @@ bytes_allocated: .quad 0
 bytes_freed: .quad 0
 
 .text
-.global mem_copy, mem_alloc, mem_realloc, mem_free, bytes_allocated, bytes_freed
+.global mem_copy, mem_alloc, mem_realloc, mem_free, mem_unmap, bytes_allocated, bytes_freed
 
 // args:
 //  x0 = dest ptr
@@ -364,11 +364,11 @@ mem_realloc:
 
     mov x0, x20
     bl mem_alloc
+    mov x20, x0
 
-    cmp x19, x0
+    cmp x19, x20
     beq .Lmem_realloc_skip_copy
-    mov x1, x0              // src
-    mov x0, x19             // dest
+    mov x1, x19             // src
     mov x2, x21             // size
     bl mem_copy
 .Lmem_realloc_skip_copy:
@@ -378,7 +378,7 @@ mem_realloc:
     bl mem_unmap
     
 .Lmem_realloc_end:
-    mov x0, x19
+    mov x0, x20
     ldp x21, x22, [sp, 32]
     ldp x19, x20, [sp, 16]
     ldp fp, lr, [sp], 48

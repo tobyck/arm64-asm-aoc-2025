@@ -72,6 +72,8 @@ list_ensure_capacity:
     orr w1, w1, w1, lsr 16
     add w1, w1, 1
 
+wtf:
+
     ldr w10, [x0, 8]        // w10 = element size
 
     str w1, [x0, 16]        // store new capacity
