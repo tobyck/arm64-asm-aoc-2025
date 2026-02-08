@@ -35,7 +35,8 @@ bytes_allocated: .quad 0
 bytes_freed: .quad 0
 
 .text
-.global mem_copy, mem_alloc, mem_realloc, mem_free, mem_unmap, bytes_allocated, bytes_freed
+.global mem_copy, mem_alloc, mem_realloc, mem_free, mem_clear
+.global bytes_allocated, bytes_freed
 
 // args:
 //  x0 = dest ptr
@@ -383,4 +384,34 @@ mem_realloc:
     ldp x19, x20, [sp, 16]
     ldp fp, lr, [sp], 48
 .Lmem_realloc_ret:
+    ret
+
+// args:
+//  x0 = address
+//  x1 = number of bytes to clear
+mem_clear:
+.Lmem_clear_align_loop:
+    tst x0, 0xf
+    beq .Lmem_clear_vector_loop
+    strb wzr, [x0], 1
+    subs x1, x1, 1
+    beq .Lmem_clear_ret
+    b .Lmem_clear_align_loop
+.Lmem_clear_vector_loop:
+    cmp x1, 64
+    blt .Lmem_clear_trailing_loop
+    movi v0.16b, 0
+    movi v1.16b, 0
+    movi v2.16b, 0
+    movi v3.16b, 0
+    st1 {v0.16b, v1.16b, v2.16b, v3.16b}, [x0], 64
+    sub x1, x1, 64
+    b .Lmem_clear_vector_loop
+.Lmem_clear_trailing_loop:
+    cmp x1, 0
+    beq .Lmem_clear_ret
+    strb wzr, [x0], 1
+    sub x1, x1, 1
+    b .Lmem_clear_trailing_loop
+.Lmem_clear_ret:
     ret
